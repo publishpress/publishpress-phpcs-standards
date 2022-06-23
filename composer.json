@@ -42,10 +42,10 @@
     },
     "scripts": {
       "post-install-cmd": [
-        "vendor/bin/phpcs --config-set installed_paths cs/PublishPressStandard"
+        "vendor/bin/phpcs --config-set installed_paths PublishPressStandards"
       ],
       "post-update-cmd": [
-          "vendor/bin/phpcs --config-set installed_paths cs/PublishPressStandard"
+          "vendor/bin/phpcs --config-set installed_paths PublishPressStandards"
       ]
     }
   }
