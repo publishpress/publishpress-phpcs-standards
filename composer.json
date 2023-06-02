@@ -2,6 +2,7 @@
   "name": "publishpress/publishpress-phpcs-standards",
   "license": "GPL-3.0-or-later",
   "description": "",
+  "type" : "phpcodesniffer-standard",
   "authors": [
     {
       "name": "PublishPress",
