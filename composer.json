@@ -1,51 +1,51 @@
 {
-    "name": "publishpress/publishpress-phpcs-standards",
-     "license": "GPL-3.0-or-later",
-    "description": "",
-    "authors": [
-      {
-        "name": "PublishPress",
-        "email": "help@publishpress.com",
-        "homepage": "https://publishpress.com",
-        "role": "Developer"
-      }
-    ],
-    "config": {
-      "preferred-install": {
-        "*": "dist"
-      },
-      "allow-plugins": {
-        "dealerdirect/phpcodesniffer-composer-installer": true
-      }
-    },
-    "minimum-stability": "stable",
-    "repositories": [
-      {
-        "type": "vcs",
-        "url": "https://github.com/andergmartins/wordpress-ray"
-      }
-    ],
-    "require": {
-      "php": ">=5.6.20"
-    },
-    "require-dev": {
-      "dealerdirect/phpcodesniffer-composer-installer": "*",
-      "phpcompatibility/php-compatibility": "*",
-      "phpmd/phpmd": "^2.8",
-      "squizlabs/php_codesniffer": "^3.5",
-      "sebastian/phpcpd": "^5.0",
-      "overtrue/phplint": "^2.1",
-      "vimeo/psalm": "^4.17",
-      "friendsofphp/php-cs-fixer": "^3.4",
-      "spatie/ray": "*",
-      "spatie/wordpress-ray": "dev-patch-1"
-    },
-    "scripts": {
-      "post-install-cmd": [
-        "vendor/bin/phpcs --config-set installed_paths standards/PublishPressStandards"
-      ],
-      "post-update-cmd": [
-          "vendor/bin/phpcs --config-set installed_paths standards/PublishPressStandards"
-      ]
+  "name": "publishpress/publishpress-phpcs-standards",
+  "license": "GPL-3.0-or-later",
+  "description": "",
+  "authors": [
+    {
+      "name": "PublishPress",
+      "email": "help@publishpress.com",
+      "homepage": "https://publishpress.com",
+      "role": "Developer"
     }
+  ],
+  "config": {
+    "preferred-install": {
+      "*": "dist"
+    },
+    "allow-plugins": {
+      "dealerdirect/phpcodesniffer-composer-installer": true
+    }
+  },
+  "minimum-stability": "stable",
+  "repositories": [
+    {
+      "type": "vcs",
+      "url": "https://github.com/andergmartins/wordpress-ray"
+    }
+  ],
+  "require": {
+    "php": ">=5.6.20"
+  },
+  "require-dev": {
+    "dealerdirect/phpcodesniffer-composer-installer": "*",
+    "phpcompatibility/php-compatibility": "*",
+    "phpmd/phpmd": "^2.8",
+    "squizlabs/php_codesniffer": "^3.5",
+    "sebastian/phpcpd": "^5.0",
+    "overtrue/phplint": "^2.1",
+    "vimeo/psalm": "^4.17",
+    "friendsofphp/php-cs-fixer": "^3.4",
+    "spatie/ray": "*",
+    "spatie/wordpress-ray": "dev-patch-1"
+  },
+  "scripts": {
+    "post-install-cmd": [
+      "vendor/bin/phpcs --config-set installed_paths standards/PublishPressStandards"
+    ],
+    "post-update-cmd": [
+      "vendor/bin/phpcs --config-set installed_paths standards/PublishPressStandards"
+    ]
   }
+}
