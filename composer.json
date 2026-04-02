@@ -3,6 +3,7 @@
   "license": "GPL-3.0-or-later",
   "description": "",
   "type" : "phpcodesniffer-standard",
+  "version": "1.0.0",
   "authors": [
     {
       "name": "PublishPress",
