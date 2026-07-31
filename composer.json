@@ -1,9 +1,9 @@
 {
   "name": "publishpress/publishpress-phpcs-standards",
   "license": "GPL-3.0-or-later",
-  "description": "",
+  "description": "PublishPress PHPCS standards, including vendored WordPress.org Plugin Check rules",
   "type" : "phpcodesniffer-standard",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "authors": [
     {
       "name": "PublishPress",
