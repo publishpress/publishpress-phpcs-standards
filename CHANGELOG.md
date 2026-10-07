@@ -7,6 +7,9 @@ and this project adheres to [Semantic Versioning](http://semver.org/).
 
 ### Added
 
+- `PublishPressStandards.Composer.RequirePluginExtra` sniff to warn when
+  `composer.json` `extra` metadata required by dev-workspace is missing or empty
+  ([#4](https://github.com/publishpress/publishpress-phpcs-standards/issues/4)).
 - `PublishPressStandards.Files.RequireGitAttributes` sniff to require a plugin-root
   `.gitattributes` and `export-ignore` for common dev paths that exist in the
   repository ([#5](https://github.com/publishpress/publishpress-phpcs-standards/issues/5)).

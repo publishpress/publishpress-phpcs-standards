@@ -10,4 +10,5 @@
     <rule>PublishPressStandards.Debug.DisallowDebugFunctions.FoundVarDumpFunction</rule>
     <rule ref="PublishPressStandards.Libraries.DisallowDirectAutoload"/>
     <rule ref="PublishPressStandards.Files.RequireGitAttributes"/>
+    <rule ref="PublishPressStandards.Composer.RequirePluginExtra"/>
 </ruleset>

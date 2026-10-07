@@ -1,0 +1,8 @@
+{
+    "name": "publishpress/publishpress-planner",
+    "extra": {
+        "plugin-name": "publishpress-planner",
+        "plugin-slug": "publishpress",
+        "plugin-folder": "publishpress"
+    }
+}
