@@ -20,6 +20,9 @@ final class RequireDirectAccessGuardSniffTest extends PhpcsTestCase
             ['RequireDirectAccessGuard/valid-braced.php'],
             ['RequireDirectAccessGuard/valid-declare-namespace-use.php'],
             ['RequireDirectAccessGuard/valid-braced-namespace.php'],
+            ['RequireDirectAccessGuard/valid-closure-use.php'],
+            ['RequireDirectAccessGuard/valid-guard-above-class-docblock.php'],
+            ['RequireDirectAccessGuard/valid-file-docblock.php'],
         ];
     }
 
@@ -56,6 +59,54 @@ final class RequireDirectAccessGuardSniffTest extends PhpcsTestCase
     {
         $fixedFixture = $this->fixturePath('RequireDirectAccessGuard/missing-guard-fixed.php');
         $target       = $this->runPhpcbfOnFixtureCopy('RequireDirectAccessGuard/missing-guard.php', [$this->sniff]);
+
+        $this->assertFileEquals($fixedFixture, $target);
+
+        unlink($target);
+    }
+
+    public function testPhpcbfInsertsGuardAboveClassDocblock()
+    {
+        $fixedFixture = $this->fixturePath('RequireDirectAccessGuard/missing-guard-class-docblock-fixed.php');
+        $target       = $this->runPhpcbfOnFixtureCopy(
+            'RequireDirectAccessGuard/missing-guard-class-docblock.php',
+            [$this->sniff]
+        );
+
+        $this->assertFileEquals($fixedFixture, $target);
+
+        unlink($target);
+    }
+
+    public function testPhpcbfKeepsFileDocblockAboveGuard()
+    {
+        $fixedFixture = $this->fixturePath('RequireDirectAccessGuard/missing-guard-file-docblock-fixed.php');
+        $target       = $this->runPhpcbfOnFixtureCopy(
+            'RequireDirectAccessGuard/missing-guard-file-docblock.php',
+            [$this->sniff]
+        );
+
+        $this->assertFileEquals($fixedFixture, $target);
+
+        unlink($target);
+    }
+
+    public function testPhpcbfMovesGuardAboveClassDocblock()
+    {
+        $fixture = $this->fixturePath('RequireDirectAccessGuard/guard-splits-class-docblock.php');
+        $report  = $this->runPhpcsOnFixture('RequireDirectAccessGuard/guard-splits-class-docblock.php', [$this->sniff]);
+
+        $this->assertSame(1, $report['totals']['errors']);
+        $this->assertSame(1, $report['totals']['fixable']);
+
+        $messages = $this->messagesForFixture($report, $fixture);
+        $this->assertSame($this->sniff . '.SplitsDocblock', $messages[0]['source']);
+
+        $fixedFixture = $this->fixturePath('RequireDirectAccessGuard/missing-guard-class-docblock-fixed.php');
+        $target       = $this->runPhpcbfOnFixtureCopy(
+            'RequireDirectAccessGuard/guard-splits-class-docblock.php',
+            [$this->sniff]
+        );
 
         $this->assertFileEquals($fixedFixture, $target);
 

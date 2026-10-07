@@ -75,6 +75,24 @@ class RequireDirectAccessGuardSniff implements Sniff
             return (count($phpcsFile->getTokens()) + 1);
         }
 
+        if ($analysis['guard_splits_docblock']) {
+            $fix = $phpcsFile->addFixableError(
+                'Direct-access guard must appear before the class, interface, trait, or function docblock.',
+                $analysis['split_guard_ptr'],
+                'SplitsDocblock'
+            );
+
+            if ($fix === true) {
+                $this->relocateGuardBeforeDocblock(
+                    $phpcsFile,
+                    $analysis['split_guard_ptr'],
+                    $analysis['insert_before_ptr']
+                );
+            }
+
+            return (count($phpcsFile->getTokens()) + 1);
+        }
+
         if ($analysis['valid_guard_ptr'] !== null && !$analysis['valid_guard_at_expected']) {
             $phpcsFile->addError(
                 'Direct-access guard must appear immediately after namespace and use statements, before any other code.',
@@ -200,6 +218,8 @@ class RequireDirectAccessGuardSniff implements Sniff
                 'valid_guard_ptr' => null,
                 'non_standard_guard_ptr' => $nonStandardGuardPtr,
                 'valid_guard_at_expected' => false,
+                'guard_splits_docblock' => false,
+                'split_guard_ptr' => null,
                 'fixable' => ($nonStandardGuardPtr === null),
             ];
         }
@@ -237,12 +257,7 @@ class RequireDirectAccessGuardSniff implements Sniff
         $preambleStart = $ptr;
         $lastUseEnd = $ptr;
         $nonStandardGuardPtr = null;
-        $stopCodes = [
-            T_CLASS,
-            T_INTERFACE,
-            T_TRAIT,
-            T_FUNCTION,
-        ];
+        $stopCodes = $this->scopeStopCodes();
 
         while ($ptr < $count) {
             $ptr = $this->skipIgnorable($tokens, $ptr);
@@ -284,17 +299,12 @@ class RequireDirectAccessGuardSniff implements Sniff
             break;
         }
 
-        $expectedPtr = $this->skipIgnorable($tokens, $lastUseEnd);
-        $insertBefore = $expectedPtr;
-
-        if ($expectedPtr >= $count) {
-            $insertBefore = max(0, $count - 1);
-        }
-
-        $guardAfterUses = $this->findGuardAfterUses($tokens, $lastUseEnd);
+        $insertBefore = $this->findGuardInsertPtr($tokens, $lastUseEnd);
+        $guardAfterUses = $this->findGuardAtExpectedPosition($tokens, $lastUseEnd);
         $validGuardPtr = $this->findValidGuardInFile($tokens);
         $validAtExpected = ($guardAfterUses !== null
             && !$this->hasUseAfterGuard($tokens, $guardAfterUses));
+        $splitGuardPtr = $this->findGuardSplittingDocblock($tokens, $insertBefore);
 
         $fixable = ($validGuardPtr === null
             && $nonStandardGuardPtr === null
@@ -302,11 +312,13 @@ class RequireDirectAccessGuardSniff implements Sniff
 
         return [
             'html_first' => false,
-            'expected_guard_ptr' => $expectedPtr,
+            'expected_guard_ptr' => $insertBefore,
             'insert_before_ptr' => $insertBefore,
             'valid_guard_ptr' => $validGuardPtr,
             'non_standard_guard_ptr' => $nonStandardGuardPtr,
             'valid_guard_at_expected' => $validAtExpected,
+            'guard_splits_docblock' => ($splitGuardPtr !== null),
+            'split_guard_ptr' => $splitGuardPtr,
             'fixable' => $fixable,
         ];
     }
@@ -341,12 +353,7 @@ class RequireDirectAccessGuardSniff implements Sniff
     {
         $ptr = $start;
         $limit = min($limit, count($tokens));
-        $stopCodes = [
-            T_CLASS,
-            T_INTERFACE,
-            T_TRAIT,
-            T_FUNCTION,
-        ];
+        $stopCodes = $this->scopeStopCodes();
 
         while ($ptr < $limit) {
             $ptr = $this->skipIgnorable($tokens, $ptr);
@@ -655,24 +662,357 @@ class RequireDirectAccessGuardSniff implements Sniff
     }
 
     /**
+     * Where a missing guard is inserted.
+     *
+     * The file header docblock stays above the guard. A docblock on the next
+     * class, interface, trait, or function stays below it.
+     *
+     * @param array<int, array<string, mixed>> $tokens
+     * @param int                              $lastUseEnd
+     *
+     * @return int
+     */
+    private function findGuardInsertPtr(array $tokens, $lastUseEnd)
+    {
+        $count = count($tokens);
+        $ptr = $this->skipWhitespaceAndInlineComments($tokens, $lastUseEnd);
+
+        while ($ptr < $count && $this->isDocblockOpen($tokens, $ptr)) {
+            if ($this->isStructureDocblock($tokens, $ptr) && !$this->isFileHeaderDocblock($tokens, $ptr)) {
+                return $ptr;
+            }
+
+            $ptr = $this->docblockEnd($tokens, $ptr);
+            $ptr = $this->skipWhitespaceAndInlineComments($tokens, $ptr);
+        }
+
+        if ($ptr >= $count) {
+            return max(0, $count - 1);
+        }
+
+        return $ptr;
+    }
+
+    /**
      * @param array<int, array<string, mixed>> $tokens
      * @param int                              $lastUseEnd
      *
      * @return int|null
      */
-    private function findGuardAfterUses(array $tokens, $lastUseEnd)
+    private function findGuardAtExpectedPosition(array $tokens, $lastUseEnd)
     {
-        $ptr = $this->skipIgnorable($tokens, $lastUseEnd);
+        $count = count($tokens);
+        $ptr = $this->skipWhitespaceAndInlineComments($tokens, $lastUseEnd);
 
-        if ($ptr >= count($tokens)) {
-            return null;
+        while ($ptr < $count && $this->isDocblockOpen($tokens, $ptr)) {
+            if ($this->isStructureDocblock($tokens, $ptr) && !$this->isFileHeaderDocblock($tokens, $ptr)) {
+                return null;
+            }
+
+            $ptr = $this->docblockEnd($tokens, $ptr);
+            $ptr = $this->skipWhitespaceAndInlineComments($tokens, $ptr);
         }
 
-        if ($this->isDirectAccessGuardAt($tokens, $ptr)) {
+        if ($ptr < $count && $this->isDirectAccessGuardAt($tokens, $ptr)) {
             return $ptr;
         }
 
         return null;
+    }
+
+    /**
+     * Guard sitting between a structure docblock and that structure.
+     *
+     * @param array<int, array<string, mixed>> $tokens
+     * @param int                              $insertPtr
+     *
+     * @return int|null
+     */
+    private function findGuardSplittingDocblock(array $tokens, $insertPtr)
+    {
+        if (!$this->isDocblockOpen($tokens, $insertPtr)
+            || !$this->isStructureDocblock($tokens, $insertPtr)
+            || $this->isFileHeaderDocblock($tokens, $insertPtr)
+        ) {
+            return null;
+        }
+
+        $ptr = $this->docblockEnd($tokens, $insertPtr);
+        $ptr = $this->skipWhitespaceAndInlineComments($tokens, $ptr);
+
+        if (!$this->isDirectAccessGuardAt($tokens, $ptr)) {
+            return null;
+        }
+
+        $afterGuard = $this->endOfGuardStatement($tokens, $ptr);
+        $afterGuard = $this->skipWhitespaceAndInlineComments($tokens, $afterGuard);
+        $afterGuard = $this->skipDeclarationModifiers($tokens, $afterGuard);
+
+        if (!$this->isStructureKeyword($tokens, $afterGuard)) {
+            return null;
+        }
+
+        return $ptr;
+    }
+
+    /**
+     * @param \PHP_CodeSniffer\Files\File $phpcsFile
+     * @param int                         $guardPtr
+     * @param int                         $docblockPtr
+     *
+     * @return void
+     */
+    private function relocateGuardBeforeDocblock(File $phpcsFile, $guardPtr, $docblockPtr)
+    {
+        $tokens = $phpcsFile->getTokens();
+        $end = $this->endOfGuardStatement($tokens, $guardPtr);
+        $chunk = '';
+
+        for ($i = $guardPtr; $i < $end; $i++) {
+            $chunk .= $tokens[$i]['content'];
+        }
+
+        $after = $end;
+        $collapseAfter = (isset($tokens[$after])
+            && $tokens[$after]['code'] === T_WHITESPACE
+            && preg_match('/\A(?:\r\n|\n|\r)+([ \t]*)\z/', $tokens[$after]['content'], $matches) === 1);
+        $before = $guardPtr - 1;
+
+        $phpcsFile->fixer->beginChangeset();
+
+        for ($i = $guardPtr; $i < $end; $i++) {
+            $phpcsFile->fixer->replaceToken($i, '');
+        }
+
+        if ($collapseAfter) {
+            $phpcsFile->fixer->replaceToken($after, $phpcsFile->eolChar . $matches[1]);
+
+            if ($before >= 0
+                && isset($tokens[$before])
+                && $tokens[$before]['code'] === T_WHITESPACE
+            ) {
+                $phpcsFile->fixer->replaceToken($before, '');
+            }
+        }
+
+        $phpcsFile->fixer->addContentBefore(
+            $docblockPtr,
+            rtrim($chunk) . $phpcsFile->eolChar . $phpcsFile->eolChar
+        );
+        $phpcsFile->fixer->endChangeset();
+    }
+
+    /**
+     * @param array<int, array<string, mixed>> $tokens
+     * @param int                              $guardPtr
+     *
+     * @return int
+     */
+    private function endOfGuardStatement(array $tokens, $guardPtr)
+    {
+        $end = $this->skipStatement($tokens, $guardPtr);
+        $count = count($tokens);
+        $guardLine = $tokens[$guardPtr]['line'];
+
+        while ($end < $count && $tokens[$end]['code'] === T_WHITESPACE) {
+            if (strpos($tokens[$end]['content'], "\n") !== false
+                || strpos($tokens[$end]['content'], "\r") !== false
+            ) {
+                break;
+            }
+
+            $end++;
+        }
+
+        if ($end < $count
+            && $tokens[$end]['code'] === T_COMMENT
+            && $tokens[$end]['line'] === $guardLine
+        ) {
+            $end++;
+        }
+
+        return $end;
+    }
+
+    /**
+     * @param array<int, array<string, mixed>> $tokens
+     * @param int                              $ptr
+     *
+     * @return bool
+     */
+    private function isDocblockOpen(array $tokens, $ptr)
+    {
+        return (isset($tokens[$ptr]) && $tokens[$ptr]['code'] === T_DOC_COMMENT_OPEN_TAG);
+    }
+
+    /**
+     * First docblock in the file, before namespace or other code.
+     *
+     * @param array<int, array<string, mixed>> $tokens
+     * @param int                              $ptr
+     *
+     * @return bool
+     */
+    private function isFileHeaderDocblock(array $tokens, $ptr)
+    {
+        if (!$this->isDocblockOpen($tokens, $ptr)) {
+            return false;
+        }
+
+        $count = count($tokens);
+        $first = null;
+
+        for ($i = 0; $i < $count; $i++) {
+            if ($tokens[$i]['code'] === T_DOC_COMMENT_OPEN_TAG) {
+                $first = $i;
+                break;
+            }
+        }
+
+        if ($first !== $ptr) {
+            return false;
+        }
+
+        for ($i = 0; $i < $ptr; $i++) {
+            $code = $tokens[$i]['code'];
+
+            if ($code === T_OPEN_TAG || $code === T_WHITESPACE || $code === T_COMMENT) {
+                continue;
+            }
+
+            if ($code === T_DECLARE) {
+                $i = $this->skipStatement($tokens, $i) - 1;
+                continue;
+            }
+
+            return false;
+        }
+
+        return true;
+    }
+
+    /**
+     * Docblock attached to the following class, interface, trait, or function.
+     *
+     * @param array<int, array<string, mixed>> $tokens
+     * @param int                              $ptr
+     *
+     * @return bool
+     */
+    private function isStructureDocblock(array $tokens, $ptr)
+    {
+        $after = $this->docblockEnd($tokens, $ptr);
+        $after = $this->skipWhitespaceAndInlineComments($tokens, $after);
+
+        if ($this->isDirectAccessGuardAt($tokens, $after)) {
+            $after = $this->endOfGuardStatement($tokens, $after);
+            $after = $this->skipWhitespaceAndInlineComments($tokens, $after);
+        }
+
+        $after = $this->skipDeclarationModifiers($tokens, $after);
+
+        return $this->isStructureKeyword($tokens, $after);
+    }
+
+    /**
+     * @param array<int, array<string, mixed>> $tokens
+     * @param int                              $ptr
+     *
+     * @return int Index of the first token after the docblock.
+     */
+    private function docblockEnd(array $tokens, $ptr)
+    {
+        if (isset($tokens[$ptr]['comment_closer'])) {
+            return $tokens[$ptr]['comment_closer'] + 1;
+        }
+
+        $count = count($tokens);
+
+        for ($i = $ptr; $i < $count; $i++) {
+            if ($tokens[$i]['code'] === T_DOC_COMMENT_CLOSE_TAG) {
+                return $i + 1;
+            }
+        }
+
+        return $count;
+    }
+
+    /**
+     * @param array<int, array<string, mixed>> $tokens
+     * @param int                              $ptr
+     *
+     * @return int
+     */
+    private function skipWhitespaceAndInlineComments(array $tokens, $ptr)
+    {
+        $count = count($tokens);
+
+        while ($ptr < $count
+            && ($tokens[$ptr]['code'] === T_WHITESPACE || $tokens[$ptr]['code'] === T_COMMENT)
+        ) {
+            $ptr++;
+        }
+
+        return $ptr;
+    }
+
+    /**
+     * @param array<int, array<string, mixed>> $tokens
+     * @param int                              $ptr
+     *
+     * @return int
+     */
+    private function skipDeclarationModifiers(array $tokens, $ptr)
+    {
+        $count = count($tokens);
+
+        while ($ptr < $count) {
+            $code = $tokens[$ptr]['code'];
+
+            if ($code === T_ABSTRACT
+                || $code === T_FINAL
+                || (defined('T_READONLY') && $code === T_READONLY)
+            ) {
+                $ptr++;
+                $ptr = $this->skipWhitespaceAndInlineComments($tokens, $ptr);
+                continue;
+            }
+
+            if (defined('T_ATTRIBUTE') && $code === T_ATTRIBUTE) {
+                if (!isset($tokens[$ptr]['attribute_closer'])) {
+                    break;
+                }
+
+                $ptr = $tokens[$ptr]['attribute_closer'] + 1;
+                $ptr = $this->skipWhitespaceAndInlineComments($tokens, $ptr);
+                continue;
+            }
+
+            break;
+        }
+
+        return $ptr;
+    }
+
+    /**
+     * @param array<int, array<string, mixed>> $tokens
+     * @param int                              $ptr
+     *
+     * @return bool
+     */
+    private function isStructureKeyword(array $tokens, $ptr)
+    {
+        if (!isset($tokens[$ptr])) {
+            return false;
+        }
+
+        $codes = $this->scopeStopCodes();
+
+        if (defined('T_ENUM')) {
+            $codes[] = T_ENUM;
+        }
+
+        return in_array($tokens[$ptr]['code'], $codes, true);
     }
 
     /**
@@ -684,12 +1024,7 @@ class RequireDirectAccessGuardSniff implements Sniff
     private function hasUseAfterGuard(array $tokens, $guardPtr)
     {
         $count = count($tokens);
-        $stopCodes = [
-            T_CLASS,
-            T_INTERFACE,
-            T_TRAIT,
-            T_FUNCTION,
-        ];
+        $stopCodes = $this->scopeStopCodes();
 
         for ($i = ($guardPtr + 1); $i < $count; $i++) {
             if ($tokens[$i]['code'] === T_USE) {
@@ -732,6 +1067,24 @@ class RequireDirectAccessGuardSniff implements Sniff
         }
 
         return false;
+    }
+
+    /**
+     * Tokens that end the file preamble. A `use` inside a closure imports
+     * variables, not a namespace.
+     *
+     * @return int[]
+     */
+    private function scopeStopCodes()
+    {
+        return [
+            T_CLASS,
+            T_INTERFACE,
+            T_TRAIT,
+            T_FUNCTION,
+            T_CLOSURE,
+            T_FN,
+        ];
     }
 
     /**

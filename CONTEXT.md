@@ -23,6 +23,7 @@ _Avoid_: direct access check, ABSPATH guard, `die`, `exit()`, `exit('...')`
 - The year is the current calendar year only. The previous year is not a **Copyright notice**.
 - `namespace`, a **Direct-access guard**, or any other code before the docblock means there is no **File header docblock**.
 - A **Direct-access guard** comes after every `declare`, `namespace`, and `use` in the file preamble, and before any other executable code.
+- The fixer leaves a **File header docblock** above the guard. A docblock on the following class, interface, trait, or function stays below the guard.
 - A valid **Direct-access guard** elsewhere in the file (for example before `use`, or after a class) is still a violation.
 
 ## Example dialogue

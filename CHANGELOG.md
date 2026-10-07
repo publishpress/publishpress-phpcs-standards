@@ -5,6 +5,15 @@ and this project adheres to [Semantic Versioning](http://semver.org/).
 
 ## [Unreleased]
 
+### Fixed
+
+- `PublishPressStandards.Security.RequireDirectAccessGuard` no longer reports
+  `WrongPosition` when a closure `use` clause follows a correctly placed
+  direct-access guard.
+- `PublishPressStandards.Security.RequireDirectAccessGuard` autofix keeps the
+  file header docblock above the guard and inserts the guard above a class,
+  interface, trait, or function docblock.
+
 ### Added
 
 - `PublishPressStandards.Security.RequireDirectAccessGuard` sniff to require
