@@ -7,6 +7,9 @@ and this project adheres to [Semantic Versioning](http://semver.org/).
 
 ### Added
 
+- `PublishPressStandards.Files.RequireGitAttributes` sniff to require a plugin-root
+  `.gitattributes` and `export-ignore` for common dev paths that exist in the
+  repository ([#5](https://github.com/publishpress/publishpress-phpcs-standards/issues/5)).
 - `PublishPressStandards.Libraries.DisallowDirectAutoload` sniff to require
   `publishpress/*/lib/include.php` instead of `autoload.php` when loading
   bundled PublishPress libraries ([#10](https://github.com/publishpress/publishpress-phpcs-standards/issues/10)).
