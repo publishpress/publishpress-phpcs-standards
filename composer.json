@@ -38,7 +38,13 @@
     "sebastian/phpcpd": "^6.0",
     "overtrue/phplint": "^2.1",
     "vimeo/psalm": "^4.17",
-    "friendsofphp/php-cs-fixer": "^3.4"
+    "friendsofphp/php-cs-fixer": "^3.4",
+    "phpunit/phpunit": "^9.6"
+  },
+  "autoload-dev": {
+    "psr-4": {
+      "PublishPressPhpcsStandards\\Tests\\": "tests/"
+    }
   },
   "scripts": {
     "post-install-cmd": [
@@ -46,6 +52,7 @@
     ],
     "post-update-cmd": [
       "vendor/bin/phpcs --config-set installed_paths standards/PublishPressStandards"
-    ]
+    ],
+    "test": "phpunit"
   }
 }

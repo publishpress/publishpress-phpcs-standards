@@ -8,4 +8,5 @@
     <rule>PublishPressStandards.Debug.DisallowDebugFunctions.FoundDdFunction</rule>
     <rule>PublishPressStandards.Debug.DisallowDebugFunctions.FoundDumpFunction</rule>
     <rule>PublishPressStandards.Debug.DisallowDebugFunctions.FoundVarDumpFunction</rule>
+    <rule ref="PublishPressStandards.Libraries.DisallowDirectAutoload"/>
 </ruleset>
