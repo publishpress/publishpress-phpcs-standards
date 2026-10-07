@@ -108,16 +108,64 @@ final class RequireDirectAccessGuardSniffTest extends PhpcsTestCase
         unlink($target);
     }
 
-    public function testFlagsMissingGuardAsNotFixableWhenUsesFollowInvalidGuard()
+    public function testWarnsWhenIfDieGuardAppearsBeforeUseStatements()
     {
         $fixture = $this->fixturePath('RequireDirectAccessGuard/missing-not-fixable.php');
         $report  = $this->runPhpcsOnFixture('RequireDirectAccessGuard/missing-not-fixable.php', [$this->sniff]);
 
-        $this->assertSame(1, $report['totals']['errors']);
+        $this->assertSame(0, $report['totals']['errors']);
+        $this->assertSame(1, $report['totals']['warnings']);
         $this->assertSame(0, $report['totals']['fixable']);
 
         $messages = $this->messagesForFixture($report, $fixture);
+        $this->assertSame($this->sniff . '.NonStandardSyntax', $messages[0]['source']);
+    }
+
+    public function testWarnsOnLegacyDefinedBooleanOr()
+    {
+        $report = $this->runPhpcsOnFixture('RequireDirectAccessGuard/legacy-defined-boolean-or.php', [$this->sniff]);
+
+        $this->assertSame(0, $report['totals']['errors']);
+        $this->assertSame(1, $report['totals']['warnings']);
+    }
+
+    public function testWarnsOnLegacyIfDieWithoutAutofix()
+    {
+        $source = $this->fixturePath('RequireDirectAccessGuard/legacy-if-die.php');
+        $report = $this->runPhpcsOnFixture('RequireDirectAccessGuard/legacy-if-die.php', [$this->sniff]);
+
+        $this->assertSame(0, $report['totals']['errors']);
+        $this->assertSame(1, $report['totals']['warnings']);
+
+        $target = $this->runPhpcbfOnFixtureCopy('RequireDirectAccessGuard/legacy-if-die.php', [$this->sniff]);
+        $this->assertFileEquals($source, $target);
+        unlink($target);
+    }
+
+    public function testFlagsMissingGuardWhenLegacyAppearsOnlyInsideFunction()
+    {
+        $fixture = $this->fixturePath('RequireDirectAccessGuard/legacy-in-function-missing.php');
+        $report  = $this->runPhpcsOnFixture('RequireDirectAccessGuard/legacy-in-function-missing.php', [$this->sniff]);
+
+        $this->assertSame(1, $report['totals']['errors']);
+        $this->assertSame(1, $report['totals']['fixable']);
+        $this->assertSame(0, $report['totals']['warnings']);
+
+        $messages = $this->messagesForFixture($report, $fixture);
         $this->assertSame($this->sniff . '.Missing', $messages[0]['source']);
+    }
+
+    public function testFlagsHtmlFirstMissingWhenLegacyIsOnlyInEmbeddedPhp()
+    {
+        $fixture = $this->fixturePath('RequireDirectAccessGuard/html-first-legacy-in-embedded-php.html.php');
+        $report  = $this->runPhpcsOnFixture(
+            'RequireDirectAccessGuard/html-first-legacy-in-embedded-php.html.php',
+            [$this->sniff]
+        );
+
+        $this->assertSame(1, $report['totals']['errors']);
+        $this->assertSame(1, $report['totals']['fixable']);
+        $this->assertSame(0, $report['totals']['warnings']);
     }
 
     public function testFlagsWrongPositionWhenGuardAppearsAfterClass()

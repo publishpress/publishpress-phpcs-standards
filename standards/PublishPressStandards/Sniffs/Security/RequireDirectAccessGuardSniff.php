@@ -85,10 +85,10 @@ class RequireDirectAccessGuardSniff implements Sniff
             return (count($phpcsFile->getTokens()) + 1);
         }
 
-        if ($analysis['legacy_guard_ptr'] !== null) {
+        if ($analysis['non_standard_guard_ptr'] !== null) {
             $phpcsFile->addWarning(
-                'File is protected against direct access but does not use the standard direct-access guard syntax (if (!defined(\'ABSPATH\')) exit;).',
-                $analysis['legacy_guard_ptr'],
+                'Direct-access guard uses non-standard syntax; use if (!defined(\'ABSPATH\')) exit; instead.',
+                $analysis['non_standard_guard_ptr'],
                 'NonStandardSyntax'
             );
 
@@ -182,17 +182,25 @@ class RequireDirectAccessGuardSniff implements Sniff
         $ptr = 0;
 
         if ($htmlFirst) {
-            $validGuardPtr = $this->findValidGuardInFile($tokens);
-            $legacyGuardPtr = $this->findLegacyDirectAccessGuardInFile($tokens);
+            $nonStandardGuardPtr = null;
+
+            if ($tokens[0]['code'] === T_OPEN_TAG) {
+                $firstPhpBlockEnd = $this->findFirstPhpBlockEnd($tokens, 0);
+                $nonStandardGuardPtr = $this->findNonStandardGuardBetween(
+                    $tokens,
+                    1,
+                    $firstPhpBlockEnd
+                );
+            }
 
             return [
                 'html_first' => true,
                 'expected_guard_ptr' => 0,
                 'insert_before_ptr' => 0,
-                'valid_guard_ptr' => $validGuardPtr,
-                'legacy_guard_ptr' => $legacyGuardPtr,
+                'valid_guard_ptr' => null,
+                'non_standard_guard_ptr' => $nonStandardGuardPtr,
                 'valid_guard_at_expected' => false,
-                'fixable' => ($validGuardPtr === null && $legacyGuardPtr === null),
+                'fixable' => ($nonStandardGuardPtr === null),
             ];
         }
 
@@ -228,6 +236,7 @@ class RequireDirectAccessGuardSniff implements Sniff
 
         $preambleStart = $ptr;
         $lastUseEnd = $ptr;
+        $nonStandardGuardPtr = null;
         $stopCodes = [
             T_CLASS,
             T_INTERFACE,
@@ -253,11 +262,21 @@ class RequireDirectAccessGuardSniff implements Sniff
             }
 
             if ($tokens[$ptr]['code'] === T_IF) {
+                if ($nonStandardGuardPtr === null
+                    && $this->isNonStandardIfAbspathGuardAt($tokens, $ptr)
+                ) {
+                    $nonStandardGuardPtr = $this->skipIgnorable($tokens, $ptr);
+                }
+
                 $ptr = $this->skipStatement($tokens, $ptr);
                 continue;
             }
 
             if ($this->isLegacyDirectAccessGuardAt($tokens, $ptr)) {
+                if ($nonStandardGuardPtr === null) {
+                    $nonStandardGuardPtr = $this->skipIgnorable($tokens, $ptr);
+                }
+
                 $ptr = $this->skipStatement($tokens, $ptr);
                 continue;
             }
@@ -277,10 +296,8 @@ class RequireDirectAccessGuardSniff implements Sniff
         $validAtExpected = ($guardAfterUses !== null
             && !$this->hasUseAfterGuard($tokens, $guardAfterUses));
 
-        $legacyGuardPtr = $this->findLegacyDirectAccessGuardInFile($tokens);
-
         $fixable = ($validGuardPtr === null
-            && $legacyGuardPtr === null
+            && $nonStandardGuardPtr === null
             && !$this->hasNonPreambleBetween($tokens, $preambleStart, $lastUseEnd));
 
         return [
@@ -288,10 +305,83 @@ class RequireDirectAccessGuardSniff implements Sniff
             'expected_guard_ptr' => $expectedPtr,
             'insert_before_ptr' => $insertBefore,
             'valid_guard_ptr' => $validGuardPtr,
-            'legacy_guard_ptr' => $legacyGuardPtr,
+            'non_standard_guard_ptr' => $nonStandardGuardPtr,
             'valid_guard_at_expected' => $validAtExpected,
             'fixable' => $fixable,
         ];
+    }
+
+    /**
+     * @param array<int, array<string, mixed>> $tokens
+     * @param int                              $openTagPtr
+     *
+     * @return int
+     */
+    private function findFirstPhpBlockEnd(array $tokens, $openTagPtr)
+    {
+        $count = count($tokens);
+
+        for ($i = ($openTagPtr + 1); $i < $count; $i++) {
+            if ($tokens[$i]['code'] === T_INLINE_HTML) {
+                return $i;
+            }
+        }
+
+        return $count;
+    }
+
+    /**
+     * @param array<int, array<string, mixed>> $tokens
+     * @param int                              $start
+     * @param int                              $limit
+     *
+     * @return int|null
+     */
+    private function findNonStandardGuardBetween(array $tokens, $start, $limit)
+    {
+        $ptr = $start;
+        $limit = min($limit, count($tokens));
+        $stopCodes = [
+            T_CLASS,
+            T_INTERFACE,
+            T_TRAIT,
+            T_FUNCTION,
+        ];
+
+        while ($ptr < $limit) {
+            $ptr = $this->skipIgnorable($tokens, $ptr);
+
+            if ($ptr >= $limit) {
+                break;
+            }
+
+            if (in_array($tokens[$ptr]['code'], $stopCodes, true)) {
+                break;
+            }
+
+            if ($tokens[$ptr]['code'] === T_USE) {
+                $ptr = $this->skipStatement($tokens, $ptr);
+                continue;
+            }
+
+            if ($tokens[$ptr]['code'] === T_IF
+                && $this->isNonStandardIfAbspathGuardAt($tokens, $ptr)
+            ) {
+                return $this->skipIgnorable($tokens, $ptr);
+            }
+
+            if ($this->isLegacyDirectAccessGuardAt($tokens, $ptr)) {
+                return $this->skipIgnorable($tokens, $ptr);
+            }
+
+            if ($tokens[$ptr]['code'] === T_INLINE_HTML) {
+                break;
+            }
+
+            break;
+        }
+
+        return null;
     }
 
     /**
@@ -315,20 +405,41 @@ class RequireDirectAccessGuardSniff implements Sniff
 
     /**
      * @param array<int, array<string, mixed>> $tokens
+     * @param int                              $ptr
      *
-     * @return int|null
+     * @return bool
      */
-    private function findLegacyDirectAccessGuardInFile(array $tokens)
+    private function isNonStandardIfAbspathGuardAt(array $tokens, $ptr)
     {
-        $count = count($tokens);
-
-        for ($i = 0; $i < $count; $i++) {
-            if ($this->isLegacyDirectAccessGuardAt($tokens, $i)) {
-                return $i;
-            }
+        if ($this->isDirectAccessGuardAt($tokens, $ptr)) {
+            return false;
         }
 
-        return null;
+        $startPtr = $this->skipIgnorable($tokens, $ptr);
+
+        if (!isset($tokens[$startPtr]) || $tokens[$startPtr]['code'] !== T_IF) {
+            return false;
+        }
+
+        $openParen = $this->skipIgnorable($tokens, $startPtr + 1);
+
+        if (!isset($tokens[$openParen]) || $tokens[$openParen]['code'] !== T_OPEN_PARENTHESIS) {
+            return false;
+        }
+
+        $conditionEnd = $this->findMatchingParenthesisEnd($tokens, $openParen);
+
+        if ($conditionEnd === false) {
+            return false;
+        }
+
+        if (!$this->isAbspathUndefinedCondition($tokens, $openParen, $conditionEnd)) {
+            return false;
+        }
+
+        $bodyPtr = $this->skipIgnorable($tokens, $conditionEnd + 1);
+
+        return $this->isDieOrExitInvocation($tokens, $bodyPtr);
     }
 
     /**
@@ -371,6 +482,10 @@ class RequireDirectAccessGuardSniff implements Sniff
     private function tokenIsDefinedFunction(array $tokens, $ptr)
     {
         if (!isset($tokens[$ptr])) {
+            return false;
+        }
+
+        if (!$this->isStatementLevelExpressionStart($tokens, $ptr)) {
             return false;
         }
 
@@ -422,6 +537,72 @@ class RequireDirectAccessGuardSniff implements Sniff
         }
 
         return $closeParen + 1;
+    }
+
+    /**
+     * @param array<int, array<string, mixed>> $tokens
+     * @param int                              $ptr
+     *
+     * @return bool
+     */
+    private function isStatementLevelExpressionStart(array $tokens, $ptr)
+    {
+        $previous = ($ptr - 1);
+
+        while ($previous >= 0) {
+            if (isset(Tokens::$emptyTokens[$tokens[$previous]['code']])) {
+                $previous--;
+                continue;
+            }
+
+            break;
+        }
+
+        if ($previous < 0) {
+            return true;
+        }
+
+        return !in_array($tokens[$previous]['code'], [T_OBJECT_OPERATOR, T_DOUBLE_COLON], true);
+    }
+
+    /**
+     * @param array<int, array<string, mixed>> $tokens
+     * @param int                              $ptr
+     *
+     * @return bool
+     */
+    private function isDieOrExitInvocation(array $tokens, $ptr)
+    {
+        if (!isset($tokens[$ptr])) {
+            return false;
+        }
+
+        if ($tokens[$ptr]['code'] === T_EXIT) {
+            return true;
+        }
+
+        if ($tokens[$ptr]['code'] === T_STRING
+            && strtolower($tokens[$ptr]['content']) === 'die'
+        ) {
+            return true;
+        }
+
+        if ($tokens[$ptr]['code'] !== T_OPEN_CURLY_BRACKET) {
+            return false;
+        }
+
+        $inner = $this->skipIgnorable($tokens, $ptr + 1);
+
+        if (!isset($tokens[$inner])) {
+            return false;
+        }
+
+        if ($tokens[$inner]['code'] === T_EXIT) {
+            return true;
+        }
+
+        return ($tokens[$inner]['code'] === T_STRING
+            && strtolower($tokens[$inner]['content']) === 'die');
     }
 
     /**
