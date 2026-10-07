@@ -84,6 +84,30 @@ final class RequireDirectAccessGuardSniffTest extends PhpcsTestCase
         unlink($target);
     }
 
+    public function testWarnsOnLegacyDefinedOrDieWithoutAutofix()
+    {
+        $fixture = $this->fixturePath('RequireDirectAccessGuard/legacy-defined-or-die.php');
+        $report  = $this->runPhpcsOnFixture('RequireDirectAccessGuard/legacy-defined-or-die.php', [$this->sniff]);
+
+        $this->assertSame(0, $report['totals']['errors']);
+        $this->assertSame(1, $report['totals']['warnings']);
+        $this->assertSame(0, $report['totals']['fixable']);
+
+        $messages = $this->messagesForFixture($report, $fixture);
+        $this->assertSame('WARNING', $messages[0]['type']);
+        $this->assertSame($this->sniff . '.NonStandardSyntax', $messages[0]['source']);
+    }
+
+    public function testPhpcbfDoesNotModifyLegacyDefinedOrDieGuard()
+    {
+        $source = $this->fixturePath('RequireDirectAccessGuard/legacy-defined-or-die.php');
+        $target = $this->runPhpcbfOnFixtureCopy('RequireDirectAccessGuard/legacy-defined-or-die.php', [$this->sniff]);
+
+        $this->assertFileEquals($source, $target);
+
+        unlink($target);
+    }
+
     public function testFlagsMissingGuardAsNotFixableWhenUsesFollowInvalidGuard()
     {
         $fixture = $this->fixturePath('RequireDirectAccessGuard/missing-not-fixable.php');
