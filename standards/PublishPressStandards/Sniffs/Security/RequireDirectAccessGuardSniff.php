@@ -18,7 +18,7 @@ class RequireDirectAccessGuardSniff implements Sniff
     /**
      * @var string
      */
-    private $htmlFirstGuard = "<?php if (!defined('ABSPATH')) exit; // Exit if accessed directly\n?>";
+    private $htmlFirstGuard = "<?php if (!defined('ABSPATH')) exit; // Exit if accessed directly\n?>\n";
 
     /**
      * @var string
@@ -114,7 +114,7 @@ class RequireDirectAccessGuardSniff implements Sniff
                 } else {
                     $phpcsFile->fixer->addContentBefore(
                         $analysis['insert_before_ptr'],
-                        $this->guardLine . $phpcsFile->eolChar
+                        $this->guardLine . $phpcsFile->eolChar . $phpcsFile->eolChar
                     );
                 }
             }
