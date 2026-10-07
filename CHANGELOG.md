@@ -7,6 +7,9 @@ and this project adheres to [Semantic Versioning](http://semver.org/).
 
 ### Added
 
+- `PublishPressStandards.Security.RequireDirectAccessGuard` sniff to require
+  `if (!defined('ABSPATH')) exit;` after `declare`, `namespace`, and `use`
+  ([#2](https://github.com/publishpress/publishpress-phpcs-standards/issues/2)).
 - `PublishPressStandards.Composer.RequirePluginExtra` sniff to warn when
   `composer.json` `extra` metadata required by dev-workspace is missing or empty
   ([#4](https://github.com/publishpress/publishpress-phpcs-standards/issues/4)).

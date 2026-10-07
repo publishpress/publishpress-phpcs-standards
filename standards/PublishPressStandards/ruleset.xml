@@ -11,4 +11,5 @@
     <rule ref="PublishPressStandards.Libraries.DisallowDirectAutoload"/>
     <rule ref="PublishPressStandards.Files.RequireGitAttributes"/>
     <rule ref="PublishPressStandards.Composer.RequirePluginExtra"/>
+    <rule ref="PublishPressStandards.Security.RequireDirectAccessGuard"/>
 </ruleset>
