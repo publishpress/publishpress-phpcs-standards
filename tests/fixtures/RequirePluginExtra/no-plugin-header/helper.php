@@ -1,0 +1,2 @@
+<?php
+// No plugin header.

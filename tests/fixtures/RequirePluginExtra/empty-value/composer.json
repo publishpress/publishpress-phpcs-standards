@@ -1,0 +1,12 @@
+{
+    "name": "publishpress/publishpress-test",
+    "extra": {
+        "plugin-name": "publishpress-test",
+        "plugin-slug": "publishpress-test",
+        "plugin-folder": "publishpress-test",
+        "version-constant": "",
+        "plugin-lang-domain": "publishpress-test",
+        "plugin-github-repo": "publishpress/publishpress-test",
+        "plugin-composer-package": "publishpress/publishpress-test"
+    }
+}
