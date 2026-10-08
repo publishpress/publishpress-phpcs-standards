@@ -257,6 +257,44 @@ final class RequireDirectAccessGuardSniffTest extends PhpcsTestCase
         $this->assertSame($this->sniff . '.NonStandardSyntax', $messages[0]['source']);
     }
 
+    public function testWarnsWhenFullyQualifiedDefinedFollowsFunctionImport()
+    {
+        $fixture = $this->fixturePath(
+            'RequireDirectAccessGuard/fully-qualified-defined-after-import.php'
+        );
+        $report  = $this->runPhpcsOnFixture(
+            'RequireDirectAccessGuard/fully-qualified-defined-after-import.php',
+            [$this->sniff]
+        );
+
+        $this->assertSame(0, $report['totals']['errors']);
+        $this->assertSame(1, $report['totals']['warnings']);
+        $this->assertSame(0, $report['totals']['fixable']);
+
+        $messages = $this->messagesForFixture($report, $fixture);
+        $this->assertSame(
+            $this->sniff . '.FullyQualifiedAfterFunctionImport',
+            $messages[0]['source']
+        );
+        $this->assertStringContainsString('use function defined', $messages[0]['message']);
+        $this->assertStringContainsString("defined('ABSPATH') || exit;", $messages[0]['message']);
+    }
+
+    public function testPhpcbfDoesNotModifyFullyQualifiedDefinedAfterImport()
+    {
+        $source = $this->fixturePath(
+            'RequireDirectAccessGuard/fully-qualified-defined-after-import.php'
+        );
+        $target = $this->runPhpcbfOnFixtureCopy(
+            'RequireDirectAccessGuard/fully-qualified-defined-after-import.php',
+            [$this->sniff]
+        );
+
+        $this->assertFileEquals($source, $target);
+
+        unlink($target);
+    }
+
     public function testWarnsWhenNamespacedFileUsesDefinedWithoutBackslash()
     {
         $fixture = $this->fixturePath('RequireDirectAccessGuard/non-standard-defined-no-backslash.php');

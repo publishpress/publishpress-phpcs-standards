@@ -111,13 +111,27 @@ class RequireDirectAccessGuardSniff implements Sniff
         }
 
         if ($analysis['non_standard_guard_ptr'] !== null) {
-            $phpcsFile->addWarning(
-                'Direct-access guard uses non-standard syntax; use '
-                . $this->formatStandardGuardExample($analysis['guard_context'])
-                . ' instead.',
+            if ($this->isFullyQualifiedDefinedAfterImport(
+                $tokens,
                 $analysis['non_standard_guard_ptr'],
-                'NonStandardSyntax'
-            );
+                $analysis['guard_context']
+            )) {
+                $phpcsFile->addWarning(
+                    'use function defined already imports the global function; call it as '
+                    . $this->formatStandardGuardExample($analysis['guard_context'])
+                    . ' instead of \\defined.',
+                    $analysis['non_standard_guard_ptr'],
+                    'FullyQualifiedAfterFunctionImport'
+                );
+            } else {
+                $phpcsFile->addWarning(
+                    'Direct-access guard uses non-standard syntax; use '
+                    . $this->formatStandardGuardExample($analysis['guard_context'])
+                    . ' instead.',
+                    $analysis['non_standard_guard_ptr'],
+                    'NonStandardSyntax'
+                );
+            }
 
             return (count($phpcsFile->getTokens()) + 1);
         }
@@ -411,9 +425,12 @@ class RequireDirectAccessGuardSniff implements Sniff
      */
     private function buildGuardContext(array $tokens)
     {
+        $importsFunctionDefined = $this->preambleImportsFunctionDefined($tokens);
+
         return [
             'requires_backslash_defined' => ($this->fileHasNamespace($tokens)
-                && !$this->preambleImportsFunctionDefined($tokens)),
+                && !$importsFunctionDefined),
+            'imports_function_defined' => $importsFunctionDefined,
         ];
     }
 
@@ -775,6 +792,27 @@ class RequireDirectAccessGuardSniff implements Sniff
         }
 
         return $this->definedCallMatchesContext($tokens, $definedPtr, $guardContext);
+    }
+
+    /**
+     * `\defined('ABSPATH') || exit` when `use function defined` is already imported.
+     *
+     * @param array<int, array<string, mixed>> $tokens
+     * @param int                              $ptr
+     * @param array<string, bool>              $guardContext
+     *
+     * @return bool
+     */
+    private function isFullyQualifiedDefinedAfterImport(array $tokens, $ptr, array $guardContext)
+    {
+        if (empty($guardContext['imports_function_defined'])) {
+            return false;
+        }
+
+        $qualifiedContext = $guardContext;
+        $qualifiedContext['requires_backslash_defined'] = true;
+
+        return $this->isStandardDirectAccessGuardAt($tokens, $ptr, $qualifiedContext);
     }
 
     /**

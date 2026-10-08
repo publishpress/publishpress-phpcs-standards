@@ -5,6 +5,12 @@ and this project adheres to [Semantic Versioning](http://semver.org/).
 
 ## [Unreleased]
 
+### Changed
+
+- `PublishPressStandards.Security.RequireDirectAccessGuard` warns with
+  `FullyQualifiedAfterFunctionImport` when `use function defined` is imported
+  and the guard still calls `\defined`.
+
 ### Fixed
 
 - `PublishPressStandards.Security.RequireDirectAccessGuard` PHPCBF relocates a

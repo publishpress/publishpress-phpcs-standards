@@ -39,3 +39,4 @@ _Avoid_: direct access check, ABSPATH guard, `if (!defined('ABSPATH'))`, `die`, 
 - "valid copyright comment or header" (issue #3) — resolved: a **Copyright notice** in the **File header docblock**. Not a free-form copyright line, not `(C)`, not a previous year, and not a class docblock.
 - Issue #2 wording vs legacy plugins — resolved: only `exit;` (not `die`, not `exit()`), with flexible whitespace and optional comment; `declare` is allowed before `namespace`.
 - Legacy `defined('ABSPATH') or/|| die/exit` and `if (!defined('ABSPATH')) die(...)` in the file preamble — warning (`NonStandardSyntax`), not autofixed; preamble-only (not inside functions or HTML-first embedded blocks).
+- `\defined('ABSPATH') || exit;` after `use function defined` — warning (`FullyQualifiedAfterFunctionImport`), not autofixed. The import already brings in the global function, so the guard must call `defined`.
