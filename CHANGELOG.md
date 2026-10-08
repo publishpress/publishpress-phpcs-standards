@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](http://semver.org/).
 
 ### Fixed
 
+- `PublishPressStandards.Security.RequireDirectAccessGuard` PHPCBF relocates a
+  standard guard that appears before `use` statements to immediately after them.
 - `PublishPressStandards.Security.RequireDirectAccessGuard` no longer reports
   `WrongPosition` when a closure `use` clause follows a correctly placed
   direct-access guard.

@@ -78,6 +78,19 @@ final class RequireDirectAccessGuardSniffTest extends PhpcsTestCase
         unlink($target);
     }
 
+    public function testPhpcbfInsertsGuardAboveInterfaceDocblock()
+    {
+        $fixedFixture = $this->fixturePath('RequireDirectAccessGuard/missing-guard-interface-docblock-fixed.php');
+        $target       = $this->runPhpcbfOnFixtureCopy(
+            'RequireDirectAccessGuard/missing-guard-interface-docblock.php',
+            [$this->sniff]
+        );
+
+        $this->assertFileEquals($fixedFixture, $target);
+
+        unlink($target);
+    }
+
     public function testPhpcbfKeepsFileDocblockAboveGuard()
     {
         $fixedFixture = $this->fixturePath('RequireDirectAccessGuard/missing-guard-file-docblock-fixed.php');
@@ -265,10 +278,38 @@ final class RequireDirectAccessGuardSniffTest extends PhpcsTestCase
         $report  = $this->runPhpcsOnFixture('RequireDirectAccessGuard/wrong-position-before-use.php', [$this->sniff]);
 
         $this->assertSame(1, $report['totals']['errors']);
-        $this->assertSame(0, $report['totals']['fixable']);
+        $this->assertSame(1, $report['totals']['fixable']);
 
         $messages = $this->messagesForFixture($report, $fixture);
         $this->assertSame($this->sniff . '.WrongPosition', $messages[0]['source']);
+    }
+
+    public function testPhpcbfMovesGuardAfterUseStatements()
+    {
+        $fixedFixture = $this->fixturePath('RequireDirectAccessGuard/wrong-position-before-use-fixed.php');
+        $target       = $this->runPhpcbfOnFixtureCopy(
+            'RequireDirectAccessGuard/wrong-position-before-use.php',
+            [$this->sniff]
+        );
+
+        $this->assertFileEquals($fixedFixture, $target);
+
+        unlink($target);
+    }
+
+    public function testPhpcbfMovesGuardAfterUseWhenCommentSeparatesGuardFromUse()
+    {
+        $fixedFixture = $this->fixturePath(
+            'RequireDirectAccessGuard/wrong-position-guard-before-use-comment-fixed.php'
+        );
+        $target       = $this->runPhpcbfOnFixtureCopy(
+            'RequireDirectAccessGuard/wrong-position-guard-before-use-comment.php',
+            [$this->sniff]
+        );
+
+        $this->assertFileEquals($fixedFixture, $target);
+
+        unlink($target);
     }
 
     public function testSkipsVendorPaths()

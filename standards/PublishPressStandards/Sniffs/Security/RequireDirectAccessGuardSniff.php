@@ -53,6 +53,7 @@ class RequireDirectAccessGuardSniff implements Sniff
         }
 
         $tokens = $phpcsFile->getTokens();
+
         $analysis = $this->analyzeFile($tokens);
 
         if ($analysis === null) {
@@ -82,11 +83,29 @@ class RequireDirectAccessGuardSniff implements Sniff
         }
 
         if ($analysis['valid_guard_ptr'] !== null && !$analysis['valid_guard_at_expected']) {
-            $phpcsFile->addError(
-                'Direct-access guard must appear immediately after namespace and use statements, before any other code.',
-                $analysis['valid_guard_ptr'],
-                'WrongPosition'
-            );
+            $relocate = $analysis['wrong_position_relocate'];
+
+            if ($relocate !== null) {
+                $fix = $phpcsFile->addFixableError(
+                    'Direct-access guard must appear immediately after namespace and use statements, before any other code.',
+                    $analysis['valid_guard_ptr'],
+                    'WrongPosition'
+                );
+
+                if ($fix === true) {
+                    $this->relocateGuardAfterUses(
+                        $phpcsFile,
+                        $relocate['guard_ptr'],
+                        $relocate['insert_ptr']
+                    );
+                }
+            } else {
+                $phpcsFile->addError(
+                    'Direct-access guard must appear immediately after namespace and use statements, before any other code.',
+                    $analysis['valid_guard_ptr'],
+                    'WrongPosition'
+                );
+            }
 
             return (count($phpcsFile->getTokens()) + 1);
         }
@@ -124,6 +143,12 @@ class RequireDirectAccessGuardSniff implements Sniff
                     $phpcsFile->fixer->addContentBefore(
                         $stackPtr,
                         $this->buildHtmlFirstGuard($analysis['guard_context'])
+                    );
+                } elseif ($this->shouldInsertGuardAfterOpenTag($tokens, $analysis['insert_before_ptr'])) {
+                    $openTagPtr = $this->findFirstOpenTag($tokens, 0);
+                    $phpcsFile->fixer->addContent(
+                        $openTagPtr,
+                        $phpcsFile->eolChar . $guardLine . $phpcsFile->eolChar
                     );
                 } else {
                     $phpcsFile->fixer->addContentBefore(
@@ -248,6 +273,10 @@ class RequireDirectAccessGuardSniff implements Sniff
             }
 
             if ($this->isDocblockOpen($tokens, $ptr)) {
+                if ($this->isStructureDocblock($tokens, $ptr)) {
+                    break;
+                }
+
                 $ptr = $this->docblockEnd($tokens, $ptr);
                 continue;
             }
@@ -257,8 +286,17 @@ class RequireDirectAccessGuardSniff implements Sniff
                 continue;
             }
 
+            if ($this->isStructureKeyword($tokens, $ptr)
+                || $this->tokenIsStructureDeclaration($tokens, $ptr)
+            ) {
+                $ptr = $this->rewindToStructureDocblockIfNeeded($tokens, $ptr);
+                break;
+            }
+
             break;
         }
+
+        $ptr = $this->rewindToStructureDocblockIfNeeded($tokens, $ptr);
 
         $preambleStart = $ptr;
         $lastUseEnd = $ptr;
@@ -311,6 +349,20 @@ class RequireDirectAccessGuardSniff implements Sniff
                 continue;
             }
 
+            if ($tokens[$ptr]['code'] === T_COMMENT) {
+                $ptr++;
+                continue;
+            }
+
+            if ($this->isDocblockOpen($tokens, $ptr)) {
+                if ($this->isFileHeaderDocblock($tokens, $ptr)) {
+                    $ptr = $this->docblockEnd($tokens, $ptr);
+                    continue;
+                }
+
+                break;
+            }
+
             break;
         }
 
@@ -320,6 +372,18 @@ class RequireDirectAccessGuardSniff implements Sniff
         $validAtExpected = ($guardAfterUses !== null
             && !$this->hasUseAfterGuard($tokens, $guardAfterUses));
         $splitGuardPtr = $this->findGuardSplittingDocblock($tokens, $insertBefore, $guardContext);
+        $wrongPositionRelocate = null;
+
+        if ($validGuardPtr !== null
+            && !$validAtExpected
+            && $this->hasUseAfterGuard($tokens, $validGuardPtr)
+            && $this->isStandardDirectAccessGuardAt($tokens, $validGuardPtr, $guardContext)
+        ) {
+            $wrongPositionRelocate = [
+                'guard_ptr' => $validGuardPtr,
+                'insert_ptr' => $insertBefore,
+            ];
+        }
 
         $fixable = ($validGuardPtr === null
             && $nonStandardGuardPtr === null
@@ -334,6 +398,7 @@ class RequireDirectAccessGuardSniff implements Sniff
             'valid_guard_at_expected' => $validAtExpected,
             'guard_splits_docblock' => ($splitGuardPtr !== null),
             'split_guard_ptr' => $splitGuardPtr,
+            'wrong_position_relocate' => $wrongPositionRelocate,
             'fixable' => $fixable,
             'guard_context' => $guardContext,
         ];
@@ -1047,6 +1112,7 @@ class RequireDirectAccessGuardSniff implements Sniff
     {
         $count = count($tokens);
         $ptr = $this->skipWhitespaceAndInlineComments($tokens, $lastUseEnd);
+        $ptr = $this->rewindToStructureDocblockIfNeeded($tokens, $ptr);
 
         while ($ptr < $count && $this->isDocblockOpen($tokens, $ptr)) {
             if ($this->isStructureDocblock($tokens, $ptr) && !$this->isFileHeaderDocblock($tokens, $ptr)) {
@@ -1057,11 +1123,60 @@ class RequireDirectAccessGuardSniff implements Sniff
             $ptr = $this->skipWhitespaceAndInlineComments($tokens, $ptr);
         }
 
+        if ($this->isStructureKeyword($tokens, $ptr)
+            || $this->tokenIsStructureDeclaration($tokens, $ptr)
+        ) {
+            $docblockPtr = $this->findStructureDocblockImmediatelyBefore($tokens, $ptr);
+
+            if ($docblockPtr !== null && !$this->isFileHeaderDocblock($tokens, $docblockPtr)) {
+                return $docblockPtr;
+            }
+        }
+
         if ($ptr >= $count) {
             return max(0, $count - 1);
         }
 
         return $ptr;
+    }
+
+    /**
+     * @param array<int, array<string, mixed>> $tokens
+     * @param int                              $insertPtr
+     *
+     * @return int
+     */
+    /**
+     * Global files whose first code is a structure docblock need the guard after the open tag.
+     *
+     * @param array<int, array<string, mixed>> $tokens
+     * @param int                              $insertPtr
+     *
+     * @return bool
+     */
+    private function shouldInsertGuardAfterOpenTag(array $tokens, $insertPtr)
+    {
+        if ($this->fileHasNamespace($tokens)) {
+            return false;
+        }
+
+        if ($this->isDocblockOpen($tokens, $insertPtr)
+            && $this->isStructureDocblock($tokens, $insertPtr)
+            && !$this->isFileHeaderDocblock($tokens, $insertPtr)
+        ) {
+            return true;
+        }
+
+        if ($this->isStructureKeyword($tokens, $insertPtr)
+            || $this->tokenIsStructureDeclaration($tokens, $insertPtr)
+        ) {
+            $docblockPtr = $this->findStructureDocblockImmediatelyBefore($tokens, $insertPtr);
+
+            return ($docblockPtr !== null
+                && !$this->isFileHeaderDocblock($tokens, $docblockPtr));
+        }
+
+        return false;
     }
 
     /**
@@ -1177,6 +1292,53 @@ class RequireDirectAccessGuardSniff implements Sniff
     }
 
     /**
+     * @param \PHP_CodeSniffer\Files\File $phpcsFile
+     * @param int                         $guardPtr
+     * @param int                         $insertBeforePtr
+     *
+     * @return void
+     */
+    private function relocateGuardAfterUses(File $phpcsFile, $guardPtr, $insertBeforePtr)
+    {
+        $tokens = $phpcsFile->getTokens();
+        $end = $this->endOfGuardStatement($tokens, $guardPtr);
+        $chunk = '';
+
+        for ($i = $guardPtr; $i < $end; $i++) {
+            $chunk .= $tokens[$i]['content'];
+        }
+
+        $after = $end;
+        $collapseAfter = (isset($tokens[$after])
+            && $tokens[$after]['code'] === T_WHITESPACE
+            && preg_match('/\A(?:\r\n|\n|\r)+([ \t]*)\z/', $tokens[$after]['content'], $matches) === 1);
+        $before = $guardPtr - 1;
+
+        $phpcsFile->fixer->beginChangeset();
+
+        for ($i = $guardPtr; $i < $end; $i++) {
+            $phpcsFile->fixer->replaceToken($i, '');
+        }
+
+        if ($collapseAfter) {
+            $phpcsFile->fixer->replaceToken($after, $phpcsFile->eolChar . $matches[1]);
+
+            if ($before >= 0
+                && isset($tokens[$before])
+                && $tokens[$before]['code'] === T_WHITESPACE
+            ) {
+                $phpcsFile->fixer->replaceToken($before, '');
+            }
+        }
+
+        $phpcsFile->fixer->addContentBefore(
+            $insertBeforePtr,
+            rtrim($chunk) . $phpcsFile->eolChar . $phpcsFile->eolChar
+        );
+        $phpcsFile->fixer->endChangeset();
+    }
+
+    /**
      * @param array<int, array<string, mixed>> $tokens
      * @param int                              $guardPtr
      *
@@ -1216,7 +1378,59 @@ class RequireDirectAccessGuardSniff implements Sniff
      */
     private function isDocblockOpen(array $tokens, $ptr)
     {
-        return (isset($tokens[$ptr]) && $tokens[$ptr]['code'] === T_DOC_COMMENT_OPEN_TAG);
+        if (!isset($tokens[$ptr])) {
+            return false;
+        }
+
+        return in_array($tokens[$ptr]['code'], [T_DOC_COMMENT_OPEN_TAG, T_DOC_COMMENT], true);
+    }
+
+    /**
+     * When the preamble ends on a structure keyword, point at its docblock instead.
+     *
+     * @param array<int, array<string, mixed>> $tokens
+     * @param int                              $ptr
+     *
+     * @return int
+     */
+    private function rewindToStructureDocblockIfNeeded(array $tokens, $ptr)
+    {
+        if (!$this->isStructureKeyword($tokens, $ptr)
+            && !$this->tokenIsStructureDeclaration($tokens, $ptr)
+        ) {
+            return $ptr;
+        }
+
+        $docblockPtr = $this->findStructureDocblockImmediatelyBefore($tokens, $ptr);
+
+        if ($docblockPtr === null) {
+            return $ptr;
+        }
+
+        return $docblockPtr;
+    }
+
+    /**
+     * @param array<int, array<string, mixed>> $tokens
+     * @param int                              $structurePtr
+     *
+     * @return int|null
+     */
+    private function findStructureDocblockImmediatelyBefore(array $tokens, $structurePtr)
+    {
+        for ($ptr = ($structurePtr - 1); $ptr >= 0; $ptr--) {
+            if (!$this->isDocblockOpen($tokens, $ptr)) {
+                continue;
+            }
+
+            if ($this->isStructureDocblock($tokens, $ptr)) {
+                return $ptr;
+            }
+
+            return null;
+        }
+
+        return null;
     }
 
     /**
@@ -1237,7 +1451,7 @@ class RequireDirectAccessGuardSniff implements Sniff
         $first = null;
 
         for ($i = 0; $i < $count; $i++) {
-            if ($tokens[$i]['code'] === T_DOC_COMMENT_OPEN_TAG) {
+            if ($this->isDocblockOpen($tokens, $i)) {
                 $first = $i;
                 break;
             }
@@ -1262,7 +1476,37 @@ class RequireDirectAccessGuardSniff implements Sniff
             return false;
         }
 
+        $after = $this->docblockEnd($tokens, $ptr);
+        $after = $this->skipWhitespaceAndInlineComments($tokens, $after);
+        $after = $this->skipDeclarationModifiers($tokens, $after);
+
+        if ($this->isStructureKeyword($tokens, $after)
+            || $this->tokenIsStructureDeclaration($tokens, $after)
+        ) {
+            return $this->docblockLooksLikeFileHeader($tokens, $ptr);
+        }
+
         return true;
+    }
+
+    /**
+     * @param array<int, array<string, mixed>> $tokens
+     * @param int                              $ptr
+     *
+     * @return bool
+     */
+    private function docblockLooksLikeFileHeader(array $tokens, $ptr)
+    {
+        $end = $this->docblockEnd($tokens, $ptr);
+        $content = '';
+
+        for ($i = $ptr; $i < $end; $i++) {
+            $content .= $tokens[$i]['content'];
+        }
+
+        return (preg_match('/\bPlugin\s+Name\s*:/i', $content) === 1
+            || preg_match('/\bCopyright\b/i', $content) === 1
+            || preg_match('/@package\b/i', $content) === 1);
     }
 
     /**
@@ -1287,7 +1531,11 @@ class RequireDirectAccessGuardSniff implements Sniff
 
         $after = $this->skipDeclarationModifiers($tokens, $after);
 
-        return $this->isStructureKeyword($tokens, $after);
+        if ($this->isStructureKeyword($tokens, $after)) {
+            return true;
+        }
+
+        return $this->tokenIsStructureDeclaration($tokens, $after);
     }
 
     /**
@@ -1382,13 +1630,44 @@ class RequireDirectAccessGuardSniff implements Sniff
             return false;
         }
 
-        $codes = $this->scopeStopCodes();
+        $name = Tokens::tokenName($tokens[$ptr]['code']);
+        $keywords = [
+            'T_CLASS',
+            'T_INTERFACE',
+            'T_TRAIT',
+            'T_FUNCTION',
+            'T_CLOSURE',
+            'T_FN',
+        ];
 
         if (defined('T_ENUM')) {
-            $codes[] = T_ENUM;
+            $keywords[] = 'T_ENUM';
         }
 
-        return in_array($tokens[$ptr]['code'], $codes, true);
+        if (in_array($name, $keywords, true)) {
+            return true;
+        }
+
+        return $this->tokenIsStructureDeclaration($tokens, $ptr);
+    }
+
+    /**
+     * @param array<int, array<string, mixed>> $tokens
+     * @param int                              $ptr
+     *
+     * @return bool
+     */
+    private function tokenIsStructureDeclaration(array $tokens, $ptr)
+    {
+        if (!isset($tokens[$ptr])) {
+            return false;
+        }
+
+        if ($tokens[$ptr]['code'] !== T_STRING) {
+            return false;
+        }
+
+        return in_array(strtolower($tokens[$ptr]['content']), ['class', 'interface', 'trait'], true);
     }
 
     /**
