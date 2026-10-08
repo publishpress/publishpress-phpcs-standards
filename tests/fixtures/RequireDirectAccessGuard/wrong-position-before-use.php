@@ -2,9 +2,7 @@
 
 namespace PublishPress\Example;
 
-if (!defined('ABSPATH')) {
-    exit;
-}
+\defined('ABSPATH') || exit;
 
 use PublishPress\Example\Foo;
 

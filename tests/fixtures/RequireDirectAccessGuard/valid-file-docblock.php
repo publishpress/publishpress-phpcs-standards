@@ -1,9 +1,9 @@
 <?php
 /**
- * Plugin Name: Example
+ * File header.
  */
 
-if (!defined('ABSPATH')) exit;
+defined('ABSPATH') || exit;
 
 class Example
 {

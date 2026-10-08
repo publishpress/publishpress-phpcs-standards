@@ -9,7 +9,7 @@ namespace PublishPress\Example;
 
 use PublishPress\Example\Foo;
 
-if (!defined('ABSPATH')) exit; // Exit if accessed directly
+\defined('ABSPATH') || exit;
 
 /**
  * Example class.

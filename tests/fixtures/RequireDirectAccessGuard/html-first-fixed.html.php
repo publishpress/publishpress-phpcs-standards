@@ -1,4 +1,4 @@
-<?php if (!defined('ABSPATH')) exit; // Exit if accessed directly
+<?php defined('ABSPATH') || exit;
 ?>
 <div class="wrap">
     <?php echo esc_html('example'); ?>

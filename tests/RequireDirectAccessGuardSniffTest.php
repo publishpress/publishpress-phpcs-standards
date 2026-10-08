@@ -17,12 +17,12 @@ final class RequireDirectAccessGuardSniffTest extends PhpcsTestCase
         return [
             ['RequireDirectAccessGuard/valid-oneliner.php'],
             ['RequireDirectAccessGuard/valid-no-comment.php'],
-            ['RequireDirectAccessGuard/valid-braced.php'],
             ['RequireDirectAccessGuard/valid-declare-namespace-use.php'],
             ['RequireDirectAccessGuard/valid-braced-namespace.php'],
             ['RequireDirectAccessGuard/valid-closure-use.php'],
             ['RequireDirectAccessGuard/valid-guard-above-class-docblock.php'],
             ['RequireDirectAccessGuard/valid-file-docblock.php'],
+            ['RequireDirectAccessGuard/valid-use-function-defined.php'],
         ];
     }
 
@@ -102,7 +102,7 @@ final class RequireDirectAccessGuardSniffTest extends PhpcsTestCase
         $messages = $this->messagesForFixture($report, $fixture);
         $this->assertSame($this->sniff . '.SplitsDocblock', $messages[0]['source']);
 
-        $fixedFixture = $this->fixturePath('RequireDirectAccessGuard/missing-guard-class-docblock-fixed.php');
+        $fixedFixture = $this->fixturePath('RequireDirectAccessGuard/guard-splits-class-docblock-fixed.php');
         $target       = $this->runPhpcbfOnFixtureCopy(
             'RequireDirectAccessGuard/guard-splits-class-docblock.php',
             [$this->sniff]
@@ -229,6 +229,34 @@ final class RequireDirectAccessGuardSniffTest extends PhpcsTestCase
 
         $messages = $this->messagesForFixture($report, $fixture);
         $this->assertSame($this->sniff . '.WrongPosition', $messages[0]['source']);
+    }
+
+    public function testWarnsOnIfStyleDirectAccessGuard()
+    {
+        $fixture = $this->fixturePath('RequireDirectAccessGuard/non-standard-if-braced.php');
+        $report  = $this->runPhpcsOnFixture('RequireDirectAccessGuard/non-standard-if-braced.php', [$this->sniff]);
+
+        $this->assertSame(0, $report['totals']['errors']);
+        $this->assertSame(1, $report['totals']['warnings']);
+        $this->assertSame(0, $report['totals']['fixable']);
+
+        $messages = $this->messagesForFixture($report, $fixture);
+        $this->assertSame($this->sniff . '.NonStandardSyntax', $messages[0]['source']);
+    }
+
+    public function testWarnsWhenNamespacedFileUsesDefinedWithoutBackslash()
+    {
+        $fixture = $this->fixturePath('RequireDirectAccessGuard/non-standard-defined-no-backslash.php');
+        $report  = $this->runPhpcsOnFixture(
+            'RequireDirectAccessGuard/non-standard-defined-no-backslash.php',
+            [$this->sniff]
+        );
+
+        $this->assertSame(0, $report['totals']['errors']);
+        $this->assertSame(1, $report['totals']['warnings']);
+
+        $messages = $this->messagesForFixture($report, $fixture);
+        $this->assertSame($this->sniff . '.NonStandardSyntax', $messages[0]['source']);
     }
 
     public function testFlagsWrongPositionWhenGuardAppearsBeforeUse()

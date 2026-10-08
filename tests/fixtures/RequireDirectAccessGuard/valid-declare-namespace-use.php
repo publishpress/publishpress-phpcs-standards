@@ -10,7 +10,7 @@ namespace PublishPress\Example;
 
 use PublishPress\Example\Foo;
 
-if (!\defined('ABSPATH')) exit;
+\defined('ABSPATH') || exit;
 
 class Bootstrap
 {

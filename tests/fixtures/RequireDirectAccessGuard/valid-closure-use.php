@@ -2,9 +2,7 @@
 
 use PublishPress\Example\Container;
 
-if (!defined('ABSPATH')) {
-    exit;
-}
+defined('ABSPATH') || exit;
 
 return [
     'factory' => static function (Container $container) {

@@ -2,11 +2,10 @@
 
 namespace PublishPress\Example;
 
-\defined('ABSPATH') || exit;
+use function defined;
 
-/**
- * Example class.
- */
+defined('ABSPATH') || exit;
+
 class Example
 {
 }

@@ -1,7 +1,6 @@
 <?php
-/**
- * Plugin Name: Example
- */
+
+namespace PublishPress\Example;
 
 defined('ABSPATH') || exit;
 

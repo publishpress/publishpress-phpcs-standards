@@ -4,9 +4,7 @@ namespace PublishPress\Future {
 
     use Throwable;
 
-    if (!defined('ABSPATH')) {
-        exit;
-    }
+    \defined('ABSPATH') || exit;
 
     function example()
     {

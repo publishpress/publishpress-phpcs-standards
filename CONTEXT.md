@@ -13,8 +13,8 @@ The first `/** */` comment in a PHP file, before any code.
 _Avoid_: class docblock, method docblock, block comment
 
 **Direct-access guard**:
-`if (!defined('ABSPATH')) exit;` as the first executable code after `declare`, `namespace`, and `use` in a PHP file. Whitespace and an optional trailing comment do not matter. A brace block whose only statement is `exit;` is the same guard.
-_Avoid_: direct access check, ABSPATH guard, `die`, `exit()`, `exit('...')`
+`defined('ABSPATH') || exit;` as the first executable code after `declare`, `namespace`, and `use` in a PHP file. Whitespace and an optional trailing comment do not matter. In a namespaced file without `use function defined;`, the call must be `\defined('ABSPATH') || exit;`.
+_Avoid_: direct access check, ABSPATH guard, `if (!defined('ABSPATH'))`, `die`, `exit()`, `exit('...')`
 
 ## Relationships
 
@@ -31,8 +31,8 @@ _Avoid_: direct access check, ABSPATH guard, `die`, `exit()`, `exit('...')`
 > **Dev:** "The view starts with `defined('ABSPATH')`, then a docblock with the **Copyright notice**. Good?"
 > **Domain expert:** "No. The notice has to be in the **File header docblock**, and that docblock has to come before the guard. On 1 January the year in the notice is wrong until someone bumps it."
 
-> **Dev:** "This template has `if (!defined('ABSPATH')) { exit; }` right after the `use` lines. Does it need the one-liner from the handbook?"
-> **Domain expert:** "No. Braces around a bare `exit;` are still a **Direct-access guard**. `exit('Direct script access denied.')` is not."
+> **Dev:** "This template has `if (!defined('ABSPATH')) { exit; }` right after the `use` lines. Does it need the short-circuit form?"
+> **Domain expert:** "Yes. Use `defined('ABSPATH') || exit;` (or `\defined` in a namespace). The `if` form is legacy; the sniff warns but does not autofix it."
 
 ## Flagged ambiguities
 
