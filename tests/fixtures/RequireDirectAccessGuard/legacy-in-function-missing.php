@@ -1,0 +1,10 @@
+<?php
+
+function example()
+{
+    defined('ABSPATH') or die('Direct access not allowed.');
+}
+
+class Example
+{
+}

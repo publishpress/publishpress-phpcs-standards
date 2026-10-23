@@ -1,7 +1,44 @@
 # Changelog
 
-The format is based on [Keep a Changelog](http://keepachangelog.com/)
-and this project adheres to [Semantic Versioning](http://semver.org/).
+The format is based on [Keep a Changelog](http://keepachangelog.com/) and this project adheres to [Semantic Versioning](http://semver.org/).
+
+[1.2.0] - 23 October, 2026
+
+### Changed
+
+- `PublishPressStandards.Security.RequireDirectAccessGuard` warns with
+  `FullyQualifiedAfterFunctionImport` when `use function defined` is imported
+  and the guard still calls `\defined`.
+
+### Fixed
+
+- `PublishPressStandards.Security.RequireDirectAccessGuard` PHPCBF relocates a
+  standard guard that appears before `use` statements to immediately after them.
+- `PublishPressStandards.Security.RequireDirectAccessGuard` no longer reports
+  `WrongPosition` when a closure `use` clause follows a correctly placed
+  direct-access guard.
+- `PublishPressStandards.Security.RequireDirectAccessGuard` autofix keeps the
+  file header docblock above the guard and inserts the guard above a class,
+  interface, trait, or function docblock.
+
+### Added
+
+- `PublishPressStandards.Security.RequireDirectAccessGuard` sniff to require
+  `defined('ABSPATH') || exit;` (or `\defined` when namespaced without
+  `use function defined;`) after `declare`, `namespace`, and `use`
+  ([#2](https://github.com/publishpress/publishpress-phpcs-standards/issues/2)).
+  Legacy `if (!defined('ABSPATH'))` and `defined(...) or/|| die` forms in the
+  preamble emit `NonStandardSyntax` warnings without autofix.
+- `PublishPressStandards.Composer.RequirePluginExtra` sniff to warn when
+  `composer.json` `extra` metadata required by dev-workspace is missing or empty
+  ([#4](https://github.com/publishpress/publishpress-phpcs-standards/issues/4)).
+- `PublishPressStandards.Files.RequireGitAttributes` sniff to require a plugin-root
+  `.gitattributes` and `export-ignore` for common dev paths that exist in the
+  repository ([#5](https://github.com/publishpress/publishpress-phpcs-standards/issues/5)).
+- `PublishPressStandards.Libraries.DisallowDirectAutoload` sniff to require
+  `publishpress/*/lib/include.php` instead of `autoload.php` when loading
+  bundled PublishPress libraries ([#10](https://github.com/publishpress/publishpress-phpcs-standards/issues/10)).
+- PHPUnit tests with dummy PHP fixtures under `tests/fixtures/` and `composer test`.
 
 [1.1.0] - 31 July, 2026
 
